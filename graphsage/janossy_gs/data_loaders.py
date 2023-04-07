@@ -23,7 +23,7 @@ def load_cora(indir):
     with open(indir + "cora.content") as fp:
         for i, line in enumerate(fp):
             info = line.strip().split()
-            feat_data[i, :] = map(float, info[1:-1])  # assumes python 2.7
+            feat_data[i, :] = list(map(float, info[1:-1]))  # assumes python 2.7
             node_map[info[0]] = i
             if not info[-1] in label_map:
                 label_map[info[-1]] = len(label_map)

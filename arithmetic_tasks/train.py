@@ -11,6 +11,7 @@ import random
 from torchvision.datasets import MNIST
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import json
+import wandb
 
 NUM_TRAINING_EXAMPLES = 100000
 NUM_TEST_EXAMPLES = 10000
@@ -26,7 +27,7 @@ supported_tasks = {'range': {'vocab_size': 100, 'sequence_length': 5},
 				   'unique_count': {'vocab_size': 10, 'sequence_length': 10},
 				   'variance': {'vocab_size': 100, 'sequence_length': 10},'stddev': {'vocab_size': 100, 'sequence_length': 10}}
 supported_nature = ['image', 'text']
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 output_dict = {"accuracy":[],"mae":[],"mse":[],"1_inf_accuracy":[],"1_inf_mae":[],"1_inf_mse":[]}
 
 # Based on task selection create train and test data
@@ -43,6 +44,8 @@ def parse_args():
 	parser.add_argument('--type', help='Specify if the task involves text or images', default='text')
 	parser.add_argument('-lr', '--learning_rate', help='Specify learning rate', default=0.0001, type=float)
 	parser.add_argument('-b', '--batch_size', help='Specify batch size', default=128, type=int)
+	parser.add_argument('-gpu', help='Specify GPU to use', default=0, type=int)
+	parser.add_argument('-wandb', help='log data into wandb', default=False, type=bool)
 	# Will enable sweeps using master script
 	# parser.add_argument('-hl',help='Enable Parameter Sweep over learning rate',action='store_true')
 	# parser.add_argument('-hn',help='Enable Parameter Sweep over number of neurons',action='store_true')
@@ -150,7 +153,7 @@ def unison_shuffled(a, b):
 	return a[p], b[p]
 
 
-def train_text(vocab_size, input_dim, task, model, num_layers, num_neurons, janossy_k, learning_rate,batch_size,iteration):
+def train_text(vocab_size, input_dim, task, model, num_layers, num_neurons, janossy_k, learning_rate,batch_size,iteration, device):
 	# Construct vocab size base on model
 	janossy_model = TextModels(vocab_size, input_dim, model, num_layers, num_neurons, janossy_k, device)
 	janossy_model.to(device)
@@ -193,7 +196,13 @@ def train_text(vocab_size, input_dim, task, model, num_layers, num_neurons, jano
 				best_val_accuracy = val_accuracy
 				#Save Weights
 				torch.save(janossy_model.state_dict(),checkpoint_file_name)	
-		print(epoch, loss.data[0],val_loss.data[0])
+		wandb.log({
+    	"train loss": loss,
+			"valid loss": val_loss,
+			"val acc": val_accuracy,
+			"best val acc": best_val_accuracy,
+		})
+		print("Epoch ", epoch, ": ", loss.data.item(),val_loss.data.item())
 	end_time = time.time()
 	total_training_time = end_time - start_time
 	print("Total Training Time: ", total_training_time)
@@ -233,6 +242,11 @@ def train_text(vocab_size, input_dim, task, model, num_layers, num_neurons, jano
 	acc =  1.0 * correct / len(output_Y)
 	mae = mean_absolute_error(output_Y,inference_output)
 	mse = mean_squared_error(output_Y,inference_output)
+	wandb.log({
+		"eval acc": acc,
+		"mae": mae,
+		"mse": mse,
+	})
 	print("Accuracy :", acc)
 	print("Mean Absolute Error: ",mae)
 	print("Mean Squared Error: ",mse)
@@ -246,10 +260,12 @@ def train_text(vocab_size, input_dim, task, model, num_layers, num_neurons, jano
 def main():
 	# if iteration more than 1 present with stddev as well over the runs
 	args = parse_args()
+	print(args)
 	batch_size = args.batch_size
 	task = str(args.task).lower()
 	nature = str(args.type).lower()
 	model = str(args.model).lower()
+	device = torch.device(args.gpu)
 	num_iterations = int(args.iterations)
 	num_neurons = args.neurons
 	num_layers = args.hidden_layers
@@ -257,9 +273,18 @@ def main():
 	janossy_k = valid_argument_check(task, nature, model)
 	vocabulary_size = determine_vocab_size(task)
 	output_file_name = str(model) + "_" + str(task) + "_" + str(num_layers) + "_" + str(args.learning_rate) + "_" + str(batch_size) + ".txt"
+
+	if args.wandb:
+		wandb.init(
+			project="JanossyMixer",
+			name=args.model+"_"+args.task,
+   		tags=["arithmetic","repro"],
+			config=args,
+		)
+
 	for iteration in range(num_iterations) :
-		train_text(vocabulary_size, BASE_EMBEDDING_DIMENSION, task, model, num_layers, num_neurons, janossy_k, learning_rate,batch_size,iteration)
-		with open(output_file_name,'w') as file :
+		train_text(vocabulary_size, BASE_EMBEDDING_DIMENSION, task, model, num_layers, num_neurons, janossy_k, learning_rate,batch_size,iteration, device)
+		with open("log/"+output_file_name,'w') as file :
 			file.write(json.dumps(output_dict))
 
 if __name__ == '__main__':

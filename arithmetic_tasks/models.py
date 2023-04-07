@@ -34,7 +34,11 @@ class TextModels(nn.Module):
 			self.model = nn.GRU(self.input_dim_mod, 80, batch_first=True)
 			self.model_activation = None
 			self.model_out_shape = 80
-	
+		elif self.model_name == 'mixer':
+			self.model = nn.LSTM(self.input_dim_mod, 50, batch_first=True)
+			# self.model = 
+			self.model_activation = None
+			self.model_out_shape = 40
 		else:
 			self.model = nn.Linear(self.input_dim_mod, 30)
 			self.model_activation = nn.Tanh()

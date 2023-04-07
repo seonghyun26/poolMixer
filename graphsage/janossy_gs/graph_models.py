@@ -320,7 +320,9 @@ class JanossyGraphSage:
     def __init__(self, **job_args):
         # Read command line arguments into a dictionary
         self.job_args = job_args
-
+        # print(job_args)
+        # exit(0)
+        # global device = jobs_args[gpu]
         # Dictionary whose keys="dataset string", values="appropriate function to load data"
         self.dataset_loader = dict()
         self.dataset_loader["cora"] = load_cora

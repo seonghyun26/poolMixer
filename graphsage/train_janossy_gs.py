@@ -17,6 +17,8 @@ import os
 import datetime
 import pickle
 
+import wandb
+
 sys.path.append("..")
 from training_utils import *
 
@@ -31,7 +33,7 @@ def parse_args():
 
     # Assuming we either do k-ary exact or n-ary piSGD
     parser.add_argument('-m', '--model_type', required=True, type=str, help='Model type: kary or nary')
-    parser.add_argument('-od', '--output_dir', required=True, type=str, help='Output directory')
+    parser.add_argument('-od', '--output_dir', required=True, type=str, help='Output directory', default='log')
     parser.add_argument('-p', '--inf_permute_number', required=True, type=int, help='Number of permutations at inference time')
     parser.add_argument('-ds', '--dataset', required=True, type=str, help='Graph Dataset')
     parser.add_argument('-id', '--input_dir', required=True, type=str, help='Input data directory')
@@ -52,6 +54,8 @@ def parse_args():
     # GraphSAGE does not use typical epoch approach with cora, pubmed (for example), but they do for ppi
     parser.add_argument('--typical_epochs', action='store_true', help="Use this flag to optimize using the typical epoch approach.")
     parser.add_argument('-ne', '--num_epochs', required=False, default=-1, type=int, help="Number of epochs if doing traditional epoch-based training")
+    parser.add_argument('-gpu', help='Specify GPU to use', default=0, type=int)
+    parser.add_argument('-wandb', help='log data into wandb', default=False, type=bool)
 
     # Parse and clean arguments
     args = parser.parse_args()
@@ -126,6 +130,8 @@ def build_out_path(d):
 if __name__ == '__main__':
     args = parse_args()
     args_dict = vars(args)
+    print(args_dict)
+    
 
     weights_path, log_path, train_data_path = build_out_path(args_dict)
     args_dict['train_data_path'] = train_data_path
@@ -146,6 +152,13 @@ if __name__ == '__main__':
     # Initialize object to hold model and data
     #
     computation_class = JanossyGraphSage(**args_dict)
+    if args_dict['wandb']:
+	    wandb.init(
+            project="JanossyMixer",
+			name=args.model_type,
+   		    tags=["graph","test"],
+			config=args,
+		)
     #
     # Inject data into computation_class
     # (dimensions of data are used to specify model: must load data first)
